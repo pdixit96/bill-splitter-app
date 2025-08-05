@@ -1,0 +1,183 @@
+
+
+<div class="container">
+  <header>
+    <h1>💰 Bill Splitter</h1>
+    <p>Split bills easily with friends</p>
+  </header>
+
+  <div class="row">
+    <!-- People Section -->
+    <div class="col">
+      <div class="card">
+        <h2>👥 People</h2>
+        
+        <div class="add-form">
+          <input 
+            [(ngModel)]="newPersonName" 
+            placeholder="Enter person's name"
+            (keyup.enter)="addPerson()">
+          <button (click)="addPerson()" [disabled]="!newPersonName.trim()">
+            Add Person
+          </button>
+        </div>
+
+        <div class="people-list">
+          <div *ngFor="let person of people" class="person-item">
+            <span class="person-name">{{ person.name }}</span>
+            <span class="person-balance" 
+                  [class.owes]="person.totalOwed > 0"
+                  [class.gets-back]="person.totalOwed < 0">
+              {{ person.totalOwed > 0 ? 'Owes' : 'Gets back' }} 
+              ${{ abs(person.totalOwed).toFixed(2) }}
+            </span>
+            <button class="remove-btn" (click)="removePerson(person.id)">×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bill Items Section -->
+    <div class="col">
+      <div class="card">
+        <h2>🧾 Bill Items</h2>
+        
+        <div class="add-form" *ngIf="people.length > 0">
+          <input 
+            [(ngModel)]="newItemName" 
+            placeholder="Item name (e.g., Pizza)">
+          <input 
+            type="number" 
+            [(ngModel)]="newItemAmount" 
+            placeholder="Amount"
+            min="0"
+            step="0.01">
+          <select [(ngModel)]="selectedGetter">
+            <option value="0">Who got it?</option>
+            <option value="-1"> Shared by Everyone</option>
+            <option *ngFor="let person of people" [value]="person.id">
+              {{ person.name }}
+            </option>
+          </select>
+          <button (click)="addBillItem()" 
+                  [disabled]="!newItemName.trim() || newItemAmount <= 0 || !selectedGetter">
+            Add Item
+          </button>
+        </div>
+
+        <div *ngIf="people.length === 0" class="empty-state">
+          Add people first to start adding bill items
+        </div>
+
+        <div class="bill-items">
+          <div *ngFor="let item of billItems" class="bill-item">
+            <!-- Normal view -->
+            <div *ngIf="!isEditingItem(item.id)" class="item-header">
+              <h3>{{ item.name }}</h3>
+              <span class="amount">${{ item.amount.toFixed(2) }}</span>
+              <button class="edit-btn" (click)="startEditItem(item)" title="Edit item">✏️</button>
+              <button class="remove-btn" (click)="removeBillItem(item.id)">×</button>
+            </div>
+            
+            <!-- Edit view -->
+            <div *ngIf="isEditingItem(item.id)" class="edit-form">
+              <div class="edit-inputs">
+                <input 
+                  [(ngModel)]="editItemName" 
+                  placeholder="Item name"
+                  class="edit-name-input">
+                <input 
+                  type="number" 
+                  [(ngModel)]="editItemAmount" 
+                  placeholder="Amount"
+                  min="0"
+                  step="0.01"
+                  class="edit-amount-input">
+                <select [(ngModel)]="editSelectedGetter" class="edit-select">
+                  <option value="0">Who got it?</option>
+                  <option value="-1">🤝 Shared by Everyone</option>
+                  <option *ngFor="let person of people" [value]="person.id">
+                    {{ person.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="edit-buttons">
+                <button class="save-btn" (click)="saveEditItem()" 
+                        [disabled]="!editItemName.trim() || editItemAmount <= 0 || !editSelectedGetter">
+                  ✓ Save
+                </button>
+                <button class="cancel-btn" (click)="cancelEditItem()">✗ Cancel</button>
+              </div>
+            </div>
+            
+            <div *ngIf="!isEditingItem(item.id)" class="item-details">
+              <p><strong>Got by:</strong> {{ getPersonName(item.gotBy) }}</p>
+              <div class="shared-by">
+                <strong>Shared by:</strong>
+                <div class="person-checkboxes">
+                  <label *ngFor="let person of people" class="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      [checked]="isPersonInItem(item.id, person.id)"
+                      (change)="togglePersonInItem(item.id, person.id)">
+                    {{ person.name }}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tax & Tip Section -->
+  <div class="tax-tip-section" *ngIf="billItems.length > 0">
+    <div class="card">
+      <h2>💰 Tax & Tip</h2>
+      <div class="tax-tip-form">
+        <div class="tax-tip-row">
+          <div class="input-group">
+            <label>Tax Amount</label>
+            <input 
+              type="number" 
+              [(ngModel)]="taxAmount" 
+              (input)="onTaxTipChange()"
+              placeholder="0.00"
+              min="0"
+              step="0.01">
+            <span class="percentage" *ngIf="getTotalBill() > 0">
+              ({{ getTaxPercentage().toFixed(1) }}%)
+            </span>
+          </div>
+          <div class="input-group">
+            <label>Tip Amount</label>
+            <input 
+              type="number" 
+              [(ngModel)]="tipAmount" 
+              (input)="onTaxTipChange()"
+              placeholder="0.00"
+              min="0"
+              step="0.01">
+            <span class="percentage" *ngIf="getTotalBill() > 0">
+              ({{ getTipPercentage().toFixed(1) }}%)
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary" *ngIf="billItems.length > 0">
+    <h2>📊 Summary</h2>
+    <div class="summary-breakdown">
+      <p><strong>Subtotal: ${{ getTotalBill().toFixed(2) }}</strong></p>
+      <p *ngIf="taxAmount > 0">Tax: ${{ taxAmount.toFixed(2) }} ({{ getTaxPercentage().toFixed(1) }}%)</p>
+      <p *ngIf="tipAmount > 0">Tip: ${{ tipAmount.toFixed(2) }} ({{ getTipPercentage().toFixed(1) }}%)</p>
+      <p class="grand-total"><strong>Grand Total: ${{ getGrandTotal().toFixed(2) }}</strong></p>
+    </div>
+  </div>
+</div>
+
+
